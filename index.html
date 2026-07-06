@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>Wicklow Sea Temp</title>
+
+<!-- iOS / Android "Add to Home Screen" support -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Wicklow Sea" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="theme-color" content="#063a5e" />
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23063a5e'/%3E%3Cpath d='M10 60 Q25 50 40 60 T70 60 T100 60 V100 H0 Z' fill='%232aa3c9'/%3E%3Cpath d='M10 75 Q25 65 40 75 T70 75 T100 75 V100 H0 Z' fill='%23167a9c'/%3E%3Ccircle cx='50' cy='30' r='14' fill='%23ffd166'/%3E%3C/svg%3E" />
+
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23063a5e'/%3E%3Cpath d='M10 60 Q25 50 40 60 T70 60 T100 60 V100 H0 Z' fill='%232aa3c9'/%3E%3Cpath d='M10 75 Q25 65 40 75 T70 75 T100 75 V100 H0 Z' fill='%23167a9c'/%3E%3Ccircle cx='50' cy='30' r='14' fill='%23ffd166'/%3E%3C/svg%3E" />
+
+<link rel="manifest" href='data:application/manifest+json,{"name":"Wicklow Sea Temperature","short_name":"Wicklow Sea","start_url":".","display":"standalone","background_color":"%23063a5e","theme_color":"%23063a5e","icons":[]}' />
+
+<style>
+  :root{
+    --bg-top:#04263f;
+    --bg-bottom:#0b4a72;
+    --card:#0e3a57;
+    --card-2:#124a6c;
+    --accent:#4fd1e0;
+    --accent-2:#ffd166;
+    --text:#eaf6fb;
+    --text-dim:#9fc3d6;
+    --danger:#ff8a80;
+    --radius:18px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:linear-gradient(180deg,var(--bg-top) 0%,var(--bg-bottom) 100%);
+    color:var(--text);
+    -webkit-font-smoothing:antialiased;
+  }
+  #app{
+    max-width:480px;
+    margin:0 auto;
+    min-height:100vh;
+    padding:env(safe-area-inset-top,0) 16px calc(env(safe-area-inset-bottom,0) + 24px) 16px;
+    display:flex;
+    flex-direction:column;
+  }
+  header{
+    padding-top:max(20px, env(safe-area-inset-top));
+    text-align:center;
+  }
+  header h1{
+    font-size:1.15rem;
+    font-weight:600;
+    letter-spacing:.02em;
+    margin:14px 0 2px;
+    color:var(--text);
+  }
+  header .sub{
+    font-size:.8rem;
+    color:var(--text-dim);
+  }
+
+  .refresh-btn{
+    position:absolute;
+    top:calc(env(safe-area-inset-top,0) + 18px);
+    right:16px;
+    background:rgba(255,255,255,0.08);
+    border:1px solid rgba(255,255,255,0.15);
+    color:var(--text);
+    border-radius:50%;
+    width:38px; height:38px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:1.1rem;
+    cursor:pointer;
+  }
+  .refresh-btn.spin svg{ animation:spin 0.9s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  .current-card{
+    margin-top:22px;
+    background:radial-gradient(circle at 30% 20%, var(--card-2), var(--card));
+    border-radius:var(--radius);
+    padding:28px 20px 22px;
+    text-align:center;
+    box-shadow:0 8px 30px rgba(0,0,0,0.25);
+    position:relative;
+    overflow:hidden;
+  }
+  .current-card .wave-deco{
+    position:absolute; left:0; right:0; bottom:-2px; height:60px;
+    opacity:.35;
+  }
+  .location{
+    font-size:.85rem;
+    color:var(--accent);
+    font-weight:600;
+    letter-spacing:.04em;
+    text-transform:uppercase;
+  }
+  .temp-value{
+    font-size:4.4rem;
+    font-weight:700;
+    line-height:1.1;
+    margin:8px 0 0;
+    letter-spacing:-1px;
+  }
+  .temp-value sup{
+    font-size:1.8rem;
+    font-weight:500;
+    vertical-align:top;
+    position:relative;
+    top:6px;
+  }
+  .updated{
+    font-size:.78rem;
+    color:var(--text-dim);
+    margin-top:6px;
+  }
+  .feel-note{
+    margin-top:10px;
+    font-size:.85rem;
+    color:var(--text);
+    background:rgba(255,255,255,0.07);
+    display:inline-block;
+    padding:6px 14px;
+    border-radius:20px;
+  }
+
+  .stats-row{
+    display:flex;
+    margin-top:20px;
+    padding-top:16px;
+    border-top:1px solid rgba(255,255,255,0.08);
+  }
+  .stat-item{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:4px;
+  }
+  .stat-item + .stat-item{
+    border-left:1px solid rgba(255,255,255,0.08);
+  }
+  .stat-item svg{ color:var(--accent-2); opacity:.9; }
+  .stat-label{
+    font-size:.68rem;
+    color:var(--text-dim);
+    text-transform:uppercase;
+    letter-spacing:.04em;
+  }
+  .stat-value{
+    font-size:.95rem;
+    font-weight:600;
+    color:var(--text);
+  }
+
+  section{ margin-top:26px; }
+  .section-title{
+    font-size:.9rem;
+    font-weight:600;
+    color:var(--text-dim);
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    margin-bottom:10px;
+    padding-left:2px;
+  }
+
+  .chart-card{
+    background:var(--card);
+    border-radius:var(--radius);
+    padding:16px 14px 10px;
+  }
+  #sparkline{ width:100%; height:110px; display:block; }
+  .chart-labels{
+    display:flex; justify-content:space-between;
+    font-size:.7rem; color:var(--text-dim); margin-top:2px; padding:0 2px;
+  }
+
+  .forecast-list{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .day-row{
+    display:flex;
+    align-items:center;
+    background:var(--card);
+    border-radius:14px;
+    padding:12px 16px;
+  }
+  .day-row .day-name{
+    width:76px;
+    font-weight:600;
+    font-size:.92rem;
+  }
+  .day-row .day-name.today{ color:var(--accent); }
+  .day-row .bar-wrap{
+    flex:1;
+    margin:0 12px;
+    height:6px;
+    background:rgba(255,255,255,0.08);
+    border-radius:3px;
+    position:relative;
+  }
+  .day-row .bar{
+    position:absolute;
+    top:0; bottom:0;
+    border-radius:3px;
+    background:linear-gradient(90deg, var(--accent), var(--accent-2));
+  }
+  .day-row .range{
+    font-size:.85rem;
+    color:var(--text-dim);
+    width:96px;
+    text-align:right;
+    white-space:nowrap;
+  }
+  .day-row .range b{ color:var(--text); font-weight:600; }
+
+  .status{
+    text-align:center;
+    margin-top:40px;
+    color:var(--text-dim);
+    font-size:.9rem;
+    padding:0 20px;
+  }
+  .status.error{ color:var(--danger); }
+
+  footer{
+    margin-top:auto;
+    padding-top:28px;
+    text-align:center;
+    font-size:.7rem;
+    color:var(--text-dim);
+    line-height:1.5;
+  }
+  footer a{ color:var(--accent); text-decoration:none; }
+
+  .hidden{ display:none !important; }
+
+  .skeleton{
+    background:linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.12) 37%, rgba(255,255,255,0.05) 63%);
+    background-size:400% 100%;
+    animation:shimmer 1.4s ease infinite;
+    border-radius:8px;
+  }
+  @keyframes shimmer{ 0%{background-position:100% 0;} 100%{background-position:0 0;} }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <button class="refresh-btn" id="refreshBtn" aria-label="Refresh">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 12a9 9 0 1 1-3-6.7"></path>
+      <path d="M21 3v6h-6"></path>
+    </svg>
+  </button>
+
+  <header>
+    <h1>Wicklow Sea Temperature</h1>
+    <div class="sub">Live conditions off the Wicklow coast, Ireland</div>
+  </header>
+
+  <div class="current-card">
+    <div class="location">Wicklow, IE</div>
+    <div class="temp-value" id="currentTemp"><span class="skeleton" style="display:inline-block;width:120px;height:60px;"></span></div>
+    <div class="updated" id="updatedAt">Loading latest reading&hellip;</div>
+    <div class="feel-note" id="feelNote"></div>
+
+    <div class="stats-row" id="statsRow">
+      <div class="stat-item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2v4"></path><path d="m4.93 10.93 1.41 1.41"></path><path d="M2 18h2"></path>
+          <path d="M20 18h2"></path><path d="m19.07 10.93-1.41 1.41"></path><path d="M22 22H2"></path>
+          <path d="m16 6-4 4-4-4"></path><path d="M16 18a4 4 0 0 0-8 0"></path>
+        </svg>
+        <div class="stat-label">Sunrise</div>
+        <div class="stat-value" id="sunriseVal">&ndash;&ndash;:&ndash;&ndash;</div>
+      </div>
+      <div class="stat-item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 10V2"></path><path d="m4.93 10.93 1.41 1.41"></path><path d="M2 18h2"></path>
+          <path d="M20 18h2"></path><path d="m19.07 10.93-1.41 1.41"></path><path d="M22 22H2"></path>
+          <path d="m16 6-4 4-4-4"></path><path d="M16 18a4 4 0 0 0-8 0"></path>
+        </svg>
+        <div class="stat-label">Sunset</div>
+        <div class="stat-value" id="sunsetVal">&ndash;&ndash;:&ndash;&ndash;</div>
+      </div>
+      <div class="stat-item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"></path>
+        </svg>
+        <div class="stat-label">Air Today</div>
+        <div class="stat-value" id="airRangeVal">&ndash;&deg; / &ndash;&deg;</div>
+      </div>
+    </div>
+  </div>
+
+  <section>
+    <div class="section-title">Next 48 Hours</div>
+    <div class="chart-card">
+      <canvas id="sparkline"></canvas>
+      <div class="chart-labels"><span id="chartStart"></span><span id="chartEnd"></span></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-title">7-Day Forecast</div>
+    <div class="forecast-list" id="forecastList">
+      <div class="skeleton" style="height:46px;"></div>
+      <div class="skeleton" style="height:46px;"></div>
+      <div class="skeleton" style="height:46px;"></div>
+    </div>
+  </section>
+
+  <div class="status hidden" id="statusMsg"></div>
+
+  <footer>
+    Sea surface temperature &amp; forecast data from<br/>
+    <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> (DWD ICON Wave model) &middot; Updates every 6&ndash;12h<br/>
+    Add this page to your Home Screen for quick access.
+  </footer>
+</div>
+
+<script>
+(function(){
+  // Wicklow, Ireland — nearshore point, forced to a sea grid cell
+  var LAT = 52.98, LON = -6.03;
+  var MARINE_API = "https://marine-api.open-meteo.com/v1/marine?latitude=" + LAT + "&longitude=" + LON +
+            "&hourly=sea_surface_temperature&current=sea_surface_temperature" +
+            "&timezone=auto&forecast_days=7&cell_selection=sea";
+  var WEATHER_API = "https://api.open-meteo.com/v1/forecast?latitude=" + LAT + "&longitude=" + LON +
+            "&daily=sunrise,sunset,temperature_2m_max,temperature_2m_min" +
+            "&timezone=auto&forecast_days=1";
+
+  var els = {
+    refreshBtn: document.getElementById('refreshBtn'),
+    currentTemp: document.getElementById('currentTemp'),
+    updatedAt: document.getElementById('updatedAt'),
+    feelNote: document.getElementById('feelNote'),
+    forecastList: document.getElementById('forecastList'),
+    statusMsg: document.getElementById('statusMsg'),
+    chartStart: document.getElementById('chartStart'),
+    chartEnd: document.getElementById('chartEnd'),
+    canvas: document.getElementById('sparkline'),
+    sunriseVal: document.getElementById('sunriseVal'),
+    sunsetVal: document.getElementById('sunsetVal'),
+    airRangeVal: document.getElementById('airRangeVal')
+  };
+
+  var CACHE_KEY = 'wicklow_sst_cache_v2';
+
+  function feelText(t){
+    if (t == null) return '';
+    if (t < 10) return 'Bracing — wetsuit weather';
+    if (t < 13) return 'Cold — a proper dip';
+    if (t < 16) return 'Cool but swimmable';
+    if (t < 19) return 'Pleasant for a swim';
+    return 'Mild for Irish waters';
+  }
+
+  function fmtDay(dateStr, idx){
+    var d = new Date(dateStr + 'T00:00:00');
+    if (idx === 0) return 'Today';
+    return d.toLocaleDateString(undefined, { weekday: 'short' });
+  }
+
+  function fmtTime(iso){
+    var d = new Date(iso);
+    return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  }
+
+  function render(combined, fromCache){
+    var data = combined.marine;
+    var weather = combined.weather;
+    var hourly = data.hourly;
+    var times = hourly.time;
+    var temps = hourly.sea_surface_temperature;
+
+    // Sunrise / sunset / today's air high-low
+    if (weather && weather.daily) {
+      var d = weather.daily;
+      els.sunriseVal.textContent = d.sunrise && d.sunrise[0] ? fmtTime(d.sunrise[0]) : '––:––';
+      els.sunsetVal.textContent = d.sunset && d.sunset[0] ? fmtTime(d.sunset[0]) : '––:––';
+      if (d.temperature_2m_max && d.temperature_2m_min) {
+        els.airRangeVal.innerHTML = Math.round(d.temperature_2m_max[0]) + '&deg; / ' + Math.round(d.temperature_2m_min[0]) + '&deg;';
+      }
+    }
+
+    // Current reading: prefer API's "current" block, else latest hourly value at/before now
+    var currentVal = null, currentTime = null;
+    if (data.current && data.current.sea_surface_temperature != null) {
+      currentVal = data.current.sea_surface_temperature;
+      currentTime = data.current.time;
+    } else {
+      var now = Date.now();
+      for (var i = 0; i < times.length; i++) {
+        if (new Date(times[i]).getTime() <= now) { currentVal = temps[i]; currentTime = times[i]; }
+        else break;
+      }
+      if (currentVal == null) { currentVal = temps[0]; currentTime = times[0]; }
+    }
+
+    els.currentTemp.innerHTML = currentVal.toFixed(1) + '<sup>&deg;C</sup>';
+    els.updatedAt.textContent = (fromCache ? 'Last saved reading — ' : 'Updated ') + fmtTime(currentTime) +
+      (fromCache ? '' : ' today');
+    els.feelNote.textContent = feelText(currentVal);
+
+    // --- 48h sparkline ---
+    var nowIdx = 0;
+    var nowTs = Date.now();
+    for (var j = 0; j < times.length; j++) { if (new Date(times[j]).getTime() <= nowTs) nowIdx = j; }
+    var sliceTimes = times.slice(nowIdx, nowIdx + 48);
+    var sliceTemps = temps.slice(nowIdx, nowIdx + 48);
+    drawSparkline(sliceTemps);
+    if (sliceTimes.length) {
+      els.chartStart.textContent = fmtTime(sliceTimes[0]);
+      els.chartEnd.textContent = fmtTime(sliceTimes[sliceTimes.length - 1]);
+    }
+
+    // --- 7-day forecast (derive daily min/max from hourly) ---
+    var byDay = {};
+    var order = [];
+    for (var k = 0; k < times.length; k++) {
+      var dateKey = times[k].slice(0, 10);
+      if (!byDay[dateKey]) { byDay[dateKey] = []; order.push(dateKey); }
+      if (temps[k] != null) byDay[dateKey].push(temps[k]);
+    }
+    var globalMin = Infinity, globalMax = -Infinity;
+    var days = order.slice(0, 7).map(function(dateKey){
+      var vals = byDay[dateKey];
+      var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
+      globalMin = Math.min(globalMin, min);
+      globalMax = Math.max(globalMax, max);
+      return { dateKey: dateKey, min: min, max: max };
+    });
+
+    var range = Math.max(globalMax - globalMin, 0.5);
+    els.forecastList.innerHTML = '';
+    days.forEach(function(d, idx){
+      var row = document.createElement('div');
+      row.className = 'day-row';
+      var leftPct = ((d.min - globalMin) / range) * 100;
+      var widthPct = Math.max(((d.max - d.min) / range) * 100, 6);
+      row.innerHTML =
+        '<div class="day-name' + (idx === 0 ? ' today' : '') + '">' + fmtDay(d.dateKey, idx) + '</div>' +
+        '<div class="bar-wrap"><div class="bar" style="left:' + leftPct + '%;width:' + widthPct + '%;"></div></div>' +
+        '<div class="range"><b>' + d.max.toFixed(1) + '&deg;</b> / ' + d.min.toFixed(1) + '&deg;</div>';
+      els.forecastList.appendChild(row);
+    });
+
+    els.statusMsg.classList.add('hidden');
+  }
+
+  function drawSparkline(values){
+    var canvas = els.canvas;
+    var dpr = window.devicePixelRatio || 1;
+    var rect = canvas.getBoundingClientRect();
+    var w = rect.width || 300, h = 110;
+    canvas.width = w * dpr; canvas.height = h * dpr;
+    canvas.style.height = h + 'px';
+    var ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, w, h);
+
+    var clean = values.filter(function(v){ return v != null; });
+    if (!clean.length) return;
+    var min = Math.min.apply(null, clean), max = Math.max.apply(null, clean);
+    var pad = 14;
+    var range = Math.max(max - min, 0.3);
+
+    function x(i){ return pad + (i / (values.length - 1)) * (w - pad * 2); }
+    function y(v){ return h - pad - ((v - min) / range) * (h - pad * 2); }
+
+    // gradient fill under line
+    var grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, 'rgba(79,209,224,0.35)');
+    grad.addColorStop(1, 'rgba(79,209,224,0)');
+
+    ctx.beginPath();
+    values.forEach(function(v, i){
+      if (v == null) return;
+      var px = x(i), py = y(v);
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    });
+    ctx.lineTo(x(values.length - 1), h - pad);
+    ctx.lineTo(x(0), h - pad);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    ctx.beginPath();
+    values.forEach(function(v, i){
+      if (v == null) return;
+      var px = x(i), py = y(v);
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    });
+    ctx.strokeStyle = '#4fd1e0';
+    ctx.lineWidth = 2.2;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+  }
+
+  function showError(msg){
+    els.statusMsg.textContent = msg;
+    els.statusMsg.className = 'status error';
+  }
+
+  function setLoading(isLoading){
+    els.refreshBtn.classList.toggle('spin', isLoading);
+  }
+
+  function fetchJson(url){
+    return fetch(url, { cache: 'no-store' }).then(function(res){
+      if (!res.ok) throw new Error('Request failed (' + res.status + ')');
+      return res.json();
+    });
+  }
+
+  function load(){
+    setLoading(true);
+    Promise.all([
+      fetchJson(MARINE_API),
+      fetchJson(WEATHER_API).catch(function(){ return null; }) // sunrise/sunset is a nice-to-have; don't fail the whole load if it's down
+    ])
+      .then(function(results){
+        var marine = results[0];
+        var weather = results[1];
+        if (marine.error) throw new Error(marine.reason || 'API error');
+        var combined = { marine: marine, weather: weather };
+        try { localStorage.setItem(CACHE_KEY, JSON.stringify({ data: combined, ts: Date.now() })); } catch(e){}
+        render(combined, false);
+      })
+      .catch(function(err){
+        var cached = null;
+        try { cached = JSON.parse(localStorage.getItem(CACHE_KEY)); } catch(e){}
+        if (cached && cached.data) {
+          render(cached.data, true);
+          showError('Offline — showing last saved reading.');
+        } else {
+          showError('Could not load data. Check your connection and try again.');
+        }
+      })
+      .finally(function(){ setLoading(false); });
+  }
+
+  els.refreshBtn.addEventListener('click', load);
+  window.addEventListener('resize', function(){
+    // redraw sparkline on rotate/resize using cached data
+    var cached = null;
+    try { cached = JSON.parse(localStorage.getItem(CACHE_KEY)); } catch(e){}
+    if (cached && cached.data) render(cached.data, false);
+  });
+
+  load();
+})();
+</script>
+</body>
+</html>
