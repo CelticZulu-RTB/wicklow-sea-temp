@@ -264,7 +264,7 @@
   </div>
 
   <section>
-    <div class="section-title">Next 48 Hours</div>
+    <div class="section-title">Today's Air Temperature</div>
     <div class="chart-card">
       <canvas id="sparkline"></canvas>
       <div class="chart-labels"><span id="chartStart"></span><span id="chartEnd"></span></div>
@@ -310,7 +310,7 @@
             "&hourly=sea_surface_temperature,sea_level_height_msl&current=sea_surface_temperature" +
             "&timezone=auto&forecast_days=2&cell_selection=sea";
   var WEATHER_API = "https://api.open-meteo.com/v1/forecast?latitude=" + LAT + "&longitude=" + LON +
-            "&daily=sunrise,sunset,temperature_2m_max,temperature_2m_min" +
+            "&daily=sunrise,sunset,temperature_2m_max,temperature_2m_min&hourly=temperature_2m" +
             "&timezone=auto&forecast_days=1";
 
   var els = {
@@ -398,16 +398,15 @@
       (fromCache ? '' : ' today');
     els.feelNote.textContent = feelText(currentVal);
 
-    // --- 48h sparkline ---
-    var nowIdx = 0;
-    var nowTs = Date.now();
-    for (var j = 0; j < times.length; j++) { if (new Date(times[j]).getTime() <= nowTs) nowIdx = j; }
-    var sliceTimes = times.slice(nowIdx, nowIdx + 48);
-    var sliceTemps = temps.slice(nowIdx, nowIdx + 48);
-    drawSparkline(sliceTemps);
-    if (sliceTimes.length) {
-      els.chartStart.textContent = fmtTime(sliceTimes[0]);
-      els.chartEnd.textContent = fmtTime(sliceTimes[sliceTimes.length - 1]);
+    // --- Today's air temperature sparkline ---
+    if (weather && weather.hourly && weather.hourly.temperature_2m) {
+      var airTimes = weather.hourly.time;
+      var airTemps = weather.hourly.temperature_2m;
+      drawSparkline(airTemps);
+      if (airTimes.length) {
+        els.chartStart.textContent = fmtTime(airTimes[0]);
+        els.chartEnd.textContent = fmtTime(airTimes[airTimes.length - 1]);
+      }
     }
 
     // --- Today's tides (derive high/low from sea_level_height_msl local extrema) ---
