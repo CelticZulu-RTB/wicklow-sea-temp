@@ -4,8 +4,6 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 <title>Wicklow Sea Temp</title>
-  <!-- redeploy trigger -->
-  
 
 <!-- iOS / Android "Add to Home Screen" support -->
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -160,6 +158,9 @@
     color:var(--text);
   }
 
+  .tide-stats{ display:flex; }
+  .tide-stats .stat-item + .stat-item{ border-left:1px solid rgba(255,255,255,0.08); }
+
   section{ margin-top:26px; }
   .section-title{
     font-size:.9rem;
@@ -181,47 +182,6 @@
     display:flex; justify-content:space-between;
     font-size:.7rem; color:var(--text-dim); margin-top:2px; padding:0 2px;
   }
-
-  .forecast-list{
-    display:flex;
-    flex-direction:column;
-    gap:8px;
-  }
-  .day-row{
-    display:flex;
-    align-items:center;
-    background:var(--card);
-    border-radius:14px;
-    padding:12px 16px;
-  }
-  .day-row .day-name{
-    width:76px;
-    font-weight:600;
-    font-size:.92rem;
-  }
-  .day-row .day-name.today{ color:var(--accent); }
-  .day-row .bar-wrap{
-    flex:1;
-    margin:0 12px;
-    height:6px;
-    background:rgba(255,255,255,0.08);
-    border-radius:3px;
-    position:relative;
-  }
-  .day-row .bar{
-    position:absolute;
-    top:0; bottom:0;
-    border-radius:3px;
-    background:linear-gradient(90deg, var(--accent), var(--accent-2));
-  }
-  .day-row .range{
-    font-size:.85rem;
-    color:var(--text-dim);
-    width:96px;
-    text-align:right;
-    white-space:nowrap;
-  }
-  .day-row .range b{ color:var(--text); font-weight:600; }
 
   .status{
     text-align:center;
@@ -312,11 +272,24 @@
   </section>
 
   <section>
-    <div class="section-title">7-Day Forecast</div>
-    <div class="forecast-list" id="forecastList">
-      <div class="skeleton" style="height:46px;"></div>
-      <div class="skeleton" style="height:46px;"></div>
-      <div class="skeleton" style="height:46px;"></div>
+    <div class="section-title">Today's Tides</div>
+    <div class="chart-card">
+      <div class="tide-stats">
+        <div class="stat-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 19V5"></path><path d="m5 12 7-7 7 7"></path>
+          </svg>
+          <div class="stat-label">High Tide</div>
+          <div class="stat-value" id="highTideVal">&ndash;&ndash;:&ndash;&ndash;</div>
+        </div>
+        <div class="stat-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 5v14"></path><path d="m19 12-7 7-7-7"></path>
+          </svg>
+          <div class="stat-label">Low Tide</div>
+          <div class="stat-value" id="lowTideVal">&ndash;&ndash;:&ndash;&ndash;</div>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -334,8 +307,8 @@
   // Wicklow, Ireland — nearshore point, forced to a sea grid cell
   var LAT = 52.98, LON = -6.03;
   var MARINE_API = "https://marine-api.open-meteo.com/v1/marine?latitude=" + LAT + "&longitude=" + LON +
-            "&hourly=sea_surface_temperature&current=sea_surface_temperature" +
-            "&timezone=auto&forecast_days=7&cell_selection=sea";
+            "&hourly=sea_surface_temperature,sea_level_height_msl&current=sea_surface_temperature" +
+            "&timezone=auto&forecast_days=2&cell_selection=sea";
   var WEATHER_API = "https://api.open-meteo.com/v1/forecast?latitude=" + LAT + "&longitude=" + LON +
             "&daily=sunrise,sunset,temperature_2m_max,temperature_2m_min" +
             "&timezone=auto&forecast_days=1";
@@ -345,14 +318,15 @@
     currentTemp: document.getElementById('currentTemp'),
     updatedAt: document.getElementById('updatedAt'),
     feelNote: document.getElementById('feelNote'),
-    forecastList: document.getElementById('forecastList'),
     statusMsg: document.getElementById('statusMsg'),
     chartStart: document.getElementById('chartStart'),
     chartEnd: document.getElementById('chartEnd'),
     canvas: document.getElementById('sparkline'),
     sunriseVal: document.getElementById('sunriseVal'),
     sunsetVal: document.getElementById('sunsetVal'),
-    airRangeVal: document.getElementById('airRangeVal')
+    airRangeVal: document.getElementById('airRangeVal'),
+    highTideVal: document.getElementById('highTideVal'),
+    lowTideVal: document.getElementById('lowTideVal')
   };
 
   var CACHE_KEY = 'wicklow_sst_cache_v2';
@@ -366,15 +340,26 @@
     return 'Mild for Irish waters';
   }
 
-  function fmtDay(dateStr, idx){
-    var d = new Date(dateStr + 'T00:00:00');
-    if (idx === 0) return 'Today';
-    return d.toLocaleDateString(undefined, { weekday: 'short' });
-  }
-
   function fmtTime(iso){
     var d = new Date(iso);
     return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  }
+
+  // Finds local peaks (high tide) and troughs (low tide) in the sea level series,
+  // restricted to today's date, and returns formatted time strings for each.
+  function findTideTimes(times, heights, todayKey){
+    var highs = [], lows = [];
+    for (var i = 1; i < heights.length - 1; i++) {
+      var prev = heights[i - 1], cur = heights[i], next = heights[i + 1];
+      if (prev == null || cur == null || next == null) continue;
+      if (times[i].slice(0, 10) !== todayKey) continue;
+      if (cur >= prev && cur >= next && (cur > prev || cur > next)) {
+        highs.push(fmtTime(times[i]));
+      } else if (cur <= prev && cur <= next && (cur < prev || cur < next)) {
+        lows.push(fmtTime(times[i]));
+      }
+    }
+    return { highs: highs, lows: lows };
   }
 
   function render(combined, fromCache){
@@ -425,36 +410,14 @@
       els.chartEnd.textContent = fmtTime(sliceTimes[sliceTimes.length - 1]);
     }
 
-    // --- 7-day forecast (derive daily min/max from hourly) ---
-    var byDay = {};
-    var order = [];
-    for (var k = 0; k < times.length; k++) {
-      var dateKey = times[k].slice(0, 10);
-      if (!byDay[dateKey]) { byDay[dateKey] = []; order.push(dateKey); }
-      if (temps[k] != null) byDay[dateKey].push(temps[k]);
+    // --- Today's tides (derive high/low from sea_level_height_msl local extrema) ---
+    var heights = hourly.sea_level_height_msl;
+    if (heights) {
+      var todayKey = times[0].slice(0, 10);
+      var tides = findTideTimes(times, heights, todayKey);
+      els.highTideVal.textContent = tides.highs.length ? tides.highs.join(' & ') : '––:––';
+      els.lowTideVal.textContent = tides.lows.length ? tides.lows.join(' & ') : '––:––';
     }
-    var globalMin = Infinity, globalMax = -Infinity;
-    var days = order.slice(0, 7).map(function(dateKey){
-      var vals = byDay[dateKey];
-      var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
-      globalMin = Math.min(globalMin, min);
-      globalMax = Math.max(globalMax, max);
-      return { dateKey: dateKey, min: min, max: max };
-    });
-
-    var range = Math.max(globalMax - globalMin, 0.5);
-    els.forecastList.innerHTML = '';
-    days.forEach(function(d, idx){
-      var row = document.createElement('div');
-      row.className = 'day-row';
-      var leftPct = ((d.min - globalMin) / range) * 100;
-      var widthPct = Math.max(((d.max - d.min) / range) * 100, 6);
-      row.innerHTML =
-        '<div class="day-name' + (idx === 0 ? ' today' : '') + '">' + fmtDay(d.dateKey, idx) + '</div>' +
-        '<div class="bar-wrap"><div class="bar" style="left:' + leftPct + '%;width:' + widthPct + '%;"></div></div>' +
-        '<div class="range"><b>' + d.max.toFixed(1) + '&deg;</b> / ' + d.min.toFixed(1) + '&deg;</div>';
-      els.forecastList.appendChild(row);
-    });
 
     els.statusMsg.classList.add('hidden');
   }
